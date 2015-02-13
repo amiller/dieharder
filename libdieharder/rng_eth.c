@@ -1,5 +1,6 @@
 /*
  * Inspired by BLUM BLUM SHUB
+ * See https://github.com/ethereum/wiki/wiki/Ethash
  */
 
 #include <dieharder/libdieharder.h>
