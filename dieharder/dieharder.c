@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
   * stream to test.
   */
  dieharder_rng_types();
+ add_ui_rngs();
 
  /*
   * Similarly we load *dh_test_types[].

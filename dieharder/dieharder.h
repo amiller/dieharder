@@ -78,5 +78,5 @@ double strategy;
  * people might want to test back to me to include in libdieharder.
  */
  GSL_VAR const gsl_rng_type *gsl_rng_empty_random;
-
+ GSL_VAR const gsl_rng_type *gsl_rng_eth;
 
