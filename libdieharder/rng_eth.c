@@ -14,6 +14,7 @@ static double eth_get_double (void *vstate);
 static void eth_set (void *vstate, unsigned long int s);
 
 #define P1 (4294967087)
+#define P2 (4294963787)
 
 typedef struct
   {
