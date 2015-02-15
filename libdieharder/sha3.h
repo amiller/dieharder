@@ -1,24 +1,19 @@
-// keccak.h
-// 19-Nov-11  Markku-Juhani O. Saarinen <mjos@iki.fi>
-
-#ifndef KECCAK_H
-#define KECCAK_H
-
+#ifndef KECCAK_FIPS202_H
+#define KECCAK_FIPS202_H
+#define __STDC_WANT_LIB_EXT1__ 1
 #include <stdint.h>
-#include <string.h>
+#include <stdlib.h>
 
-#ifndef KECCAK_ROUNDS
-#define KECCAK_ROUNDS 24
-#endif
+#define decshake(bits) \
+  int shake##bits(uint8_t*, size_t, const uint8_t*, size_t);
 
-#ifndef ROTL64
-#define ROTL64(x, y) (((x) << (y)) | ((x) >> (64 - (y))))
-#endif
+#define decsha3(bits) \
+  int sha3_##bits(uint8_t*, size_t, const uint8_t*, size_t);
 
-// compute a keccak hash (md) of given byte length from "in"
-int keccak(const uint8_t *in, int inlen, uint8_t *md, int mdlen);
-
-// update the state
-void keccakf(uint64_t st[25], int norounds);
-
+decshake(128)
+decshake(256)
+decsha3(224)
+decsha3(256)
+decsha3(384)
+decsha3(512)
 #endif

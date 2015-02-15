@@ -1,105 +1,178 @@
-// keccak.c
-// 19-Nov-11  Markku-Juhani O. Saarinen <mjos@iki.fi>
-// A baseline Keccak (3rd round) implementation.
-
+/** libkeccak-tiny
+ *
+ * A single-file implementation of SHA-3 and SHAKE.
+ *
+ * Implementor: David Leon Gil
+ * License: CC0, attribution kindly requested. Blame taken too,
+ * but not liability.
+ */
 #include "sha3.h"
 
-const uint64_t keccakf_rndc[24] = 
-  {
-    0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
-    0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
-    0x8000000080008081, 0x8000000000008009, 0x000000000000008a,
-    0x0000000000000088, 0x0000000080008009, 0x000000008000000a,
-    0x000000008000808b, 0x800000000000008b, 0x8000000000008089,
-    0x8000000000008003, 0x8000000000008002, 0x8000000000000080, 
-    0x000000000000800a, 0x800000008000000a, 0x8000000080008081,
-    0x8000000000008080, 0x0000000080000001, 0x8000000080008008
-  };
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-const int keccakf_rotc[24] = 
-  {
-    1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14, 
-    27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
-  };
+/******** The Keccak-f[1600] permutation ********/
 
-const int keccakf_piln[24] = 
-  {
-    10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4, 
-    15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1 
-  };
+/*** Constants. ***/
+static const uint8_t rho[24] = \
+  { 1,  3,   6, 10, 15, 21,
+    28, 36, 45, 55,  2, 14,
+    27, 41, 56,  8, 25, 43,
+    62, 18, 39, 61, 20, 44};
+static const uint8_t pi[24] = \
+  {10,  7, 11, 17, 18, 3,
+    5, 16,  8, 21, 24, 4,
+   15, 23, 19, 13, 12, 2,
+   20, 14, 22,  9, 6,  1};
+static const uint64_t RC[24] = \
+  {1ULL, 0x8082ULL, 0x800000000000808aULL, 0x8000000080008000ULL,
+   0x808bULL, 0x80000001ULL, 0x8000000080008081ULL, 0x8000000000008009ULL,
+   0x8aULL, 0x88ULL, 0x80008009ULL, 0x8000000aULL,
+   0x8000808bULL, 0x800000000000008bULL, 0x8000000000008089ULL, 0x8000000000008003ULL,
+   0x8000000000008002ULL, 0x8000000000000080ULL, 0x800aULL, 0x800000008000000aULL,
+   0x8000000080008081ULL, 0x8000000000008080ULL, 0x80000001ULL, 0x8000000080008008ULL};
 
-// update the state with given number of rounds
+/*** Helper macros to unroll the permutation. ***/
+#define rol(x, s) (((x) << s) | ((x) >> (64 - s)))
+#define REPEAT6(e) e e e e e e
+#define REPEAT24(e) REPEAT6(e e e e)
+#define REPEAT5(e) e e e e e
+#define FOR5(v, s, e) \
+  v = 0;            \
+  REPEAT5(e; v += s;)
 
-void keccakf(uint64_t st[25], int rounds)
-{
-  int i, j, round;
-  uint64_t t, bc[5];
+/*** Keccak-f[1600] ***/
+static inline void keccakf(void* state) {
+  uint64_t* a = (uint64_t*)state;
+  uint64_t b[5] = {0};
+  uint64_t t = 0;
+  uint8_t x, y;
 
-  for (round = 0; round < rounds; round++) {
-
+  for (int i = 0; i < 24; i++) {
     // Theta
-    for (i = 0; i < 5; i++)     
-      bc[i] = st[i] ^ st[i + 5] ^ st[i + 10] ^ st[i + 15] ^ st[i + 20];
-
-    for (i = 0; i < 5; i++) {
-      t = bc[(i + 4) % 5] ^ ROTL64(bc[(i + 1) % 5], 1);
-      for (j = 0; j < 25; j += 5)
-	st[j + i] ^= t;
-    }
-
-    // Rho Pi
-    t = st[1];
-    for (i = 0; i < 24; i++) {
-      j = keccakf_piln[i];
-      bc[0] = st[j];
-      st[j] = ROTL64(t, keccakf_rotc[i]);
-      t = bc[0];
-    }
-
-    //  Chi
-    for (j = 0; j < 25; j += 5) {
-      for (i = 0; i < 5; i++)
-	bc[i] = st[j + i];
-      for (i = 0; i < 5; i++)
-	st[j + i] ^= (~bc[(i + 1) % 5]) & bc[(i + 2) % 5];
-    }
-
-    //  Iota
-    st[0] ^= keccakf_rndc[round];
+    FOR5(x, 1,
+         b[x] = 0;
+         FOR5(y, 5,
+              b[x] ^= a[x + y]; ))
+    FOR5(x, 1,
+         FOR5(y, 5,
+              a[y + x] ^= b[(x + 4) % 5] ^ rol(b[(x + 1) % 5], 1); ))
+    // Rho and pi
+    t = a[1];
+    x = 0;
+    REPEAT24(b[0] = a[pi[x]];
+             a[pi[x]] = rol(t, rho[x]);
+             t = b[0];
+             x++; )
+    // Chi
+    FOR5(y,
+       5,
+       FOR5(x, 1,
+            b[x] = a[y + x];)
+       FOR5(x, 1,
+            a[y + x] = b[x] ^ ((~b[(x + 1) % 5]) & b[(x + 2) % 5]); ))
+    // Iota
+    a[0] ^= RC[i];
   }
 }
 
-// compute a keccak hash (md) of given byte length from "in"
+/******** The FIPS202-defined functions. ********/
 
-int keccak(const uint8_t *in, int inlen, uint8_t *md, int mdlen)
-{
-  uint64_t st[25];    
-  uint8_t temp[144];
-  int i, rsiz, rsizw;
+/*** Some helper macros. ***/
 
-  rsiz = 200 - 2 * mdlen;
-  rsizw = rsiz / 8;
-    
-  memset(st, 0, sizeof(st));
-
-  for ( ; inlen >= rsiz; inlen -= rsiz, in += rsiz) {
-    for (i = 0; i < rsizw; i++)
-      st[i] ^= ((uint64_t *) in)[i];
-    keccakf(st, KECCAK_ROUNDS);
+#define _(S) do { S } while (0)
+#define FOR(i, ST, L, S) \
+  _(for (size_t i = 0; i < L; i += ST) { S; })
+#define mkapply_ds(NAME, S)                                          \
+  static inline void NAME(uint8_t* dst,                              \
+                          const uint8_t* src,                        \
+                          size_t len) {                              \
+    FOR(i, 1, len, S);                                               \
   }
-    
-  // last block and padding
-  memcpy(temp, in, inlen);
-  temp[inlen++] = 1;
-  memset(temp + inlen, 0, rsiz - inlen);
-  temp[rsiz - 1] |= 0x80;
+#define mkapply_sd(NAME, S)                                          \
+  static inline void NAME(const uint8_t* src,                        \
+                          uint8_t* dst,                              \
+                          size_t len) {                              \
+    FOR(i, 1, len, S);                                               \
+  }
 
-  for (i = 0; i < rsizw; i++)
-    st[i] ^= ((uint64_t *) temp)[i];
+mkapply_ds(xorin, dst[i] ^= src[i])  // xorin
+mkapply_sd(setout, dst[i] = src[i])  // setout
 
-  keccakf(st, KECCAK_ROUNDS);
+#define P keccakf
+#define Plen 200
 
-  memcpy(md, st, mdlen);
+// Fold P*F over the full blocks of an input.
+#define foldP(I, L, F) \
+  while (L >= rate) {  \
+    F(a, I, rate);     \
+    P(a);              \
+    I += rate;         \
+    L -= rate;         \
+  }
 
+/** The sponge-based hash construction. **/
+static inline int hash(uint8_t* out, size_t outlen,
+                       const uint8_t* in, size_t inlen,
+                       size_t rate, uint8_t delim) {
+  if ((out == NULL) || ((in == NULL) && inlen != 0) || (rate >= Plen)) {
+    return -1;
+  }
+  uint8_t a[Plen] = {0};
+  // Absorb input.
+  foldP(in, inlen, xorin);
+  // Xor in the DS and pad frame.
+  a[inlen] ^= delim;
+  a[rate - 1] ^= 0x80;
+  // Xor in the last block.
+  xorin(a, in, inlen);
+  // Apply P
+  P(a);
+  // Squeeze output.
+  foldP(out, outlen, setout);
+  setout(a, out, outlen);
+  memset(a, 0, 200);
   return 0;
 }
+
+/*** Helper macros to define SHA3 and SHAKE instances. ***/
+#define defshake(bits)                                            \
+  int shake##bits(uint8_t* out, size_t outlen,                    \
+                  const uint8_t* in, size_t inlen) {              \
+    return hash(out, outlen, in, inlen, 200 - (bits / 4), 0x1f);  \
+  }
+#define defsha3(bits)                                             \
+  int sha3_##bits(uint8_t* out, size_t outlen,                    \
+                  const uint8_t* in, size_t inlen) {              \
+    if (outlen > (bits/8)) {                                      \
+      return -1;                                                  \
+    }                                                             \
+    return hash(out, outlen, in, inlen, 200 - (bits / 4), 0x01);  \
+  }
+#define def_fips202_sha3(bits)                                    \
+  int fips202_sha3_##bits(uint8_t* out, size_t outlen,            \
+                  const uint8_t* in, size_t inlen) {              \
+    if (outlen > (bits/8)) {                                      \
+      return -1;                                                  \
+    }                                                             \
+    return hash(out, outlen, in, inlen, 200 - (bits / 4), 0x06);  \
+  }
+
+// delim = 0x06 for FIPS 202
+
+/*** FIPS202 SHAKE VOFs ***/
+defshake(128)
+defshake(256)
+
+/*** FIPS202 SHA3 FOFs ***/
+defsha3(224)
+defsha3(256)
+defsha3(384)
+defsha3(512)
+
+def_fips202_sha3(224)
+def_fips202_sha3(256)
+def_fips202_sha3(384)
+def_fips202_sha3(512)
