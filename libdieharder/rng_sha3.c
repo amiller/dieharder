@@ -67,8 +67,8 @@ sha3_set (void *vstate, unsigned long int s)
 
 static const gsl_rng_type sha3_type =
 {"sha3",			/* name */
- 0,			        /* RAND_MAX */
- UINT_MAX,			/* RAND_MIN */
+ UINT_MAX,	       	        /* RAND_MAX */
+ 0,		         	/* RAND_MIN */
  sizeof (sha3_state_t),
  &sha3_set,
  &sha3_get,
