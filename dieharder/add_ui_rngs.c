@@ -32,8 +32,8 @@ void add_ui_rngs()
  dh_rng_types[i] = gsl_rng_empty_random;
  i++;
   */
- dh_rng_types[i] = gsl_rng_eth;
- i++;
+ dh_rng_types[i] = gsl_rng_eth; i++;
+ dh_rng_types[i] = gsl_rng_sha3; i++;
 
  dh_num_user_rngs++;
  dh_num_rngs++;

@@ -87,6 +87,8 @@ libdieharder_la_SOURCES = \
 	rng_uvag.c \
 	rng_XOR.c \
 	rng_eth.c \
+	rng_sha3.c \
+	sha3.c \
 	sample.c \
 	skein_block64.c \
 	skein_block_ref.c \
