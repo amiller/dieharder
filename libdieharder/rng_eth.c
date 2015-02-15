@@ -24,25 +24,33 @@ typedef struct
 eth_state_t;
 
 static unsigned long int
-eth_get (void *vstate)
+_eth_get (void *vstate)
 {
   eth_state_t *state = (eth_state_t *) vstate;
   unsigned long long int y = state->x; // at least 64 bits
-  //printf("get1:%u\n", y);
   y = (y * state->x) % P1;
-  //printf("get2:%u\n", y);
   y = (y * state->x) % P1;
-  //printf("get3:%u\n", y);
   y = CLAMP(2,y,P1-2);
   state->x = (unsigned long int) y;
-  //printf("get:%u\n", y);
   return y;
+}
+
+// A wrapper, that runs the original eth_get (in the range [2,P1-2] and
+// projects it (using rejection sampling) to the range [0,2**31)
+static unsigned long int
+eth_get (void *vstate)
+{
+  while (1) {
+    unsigned long int c = _eth_get(vstate) - 2;
+    if (c > (1L << 31)-1) continue;
+    return c;
+  }
 }
 
 static double
 eth_get_double (void *vstate)
 {
-  return (double) (eth_get(vstate)-2) / (double) (P1-4);
+  return (double) (eth_get(vstate)) / (double) ((1L<<31)-1);
 }
 
 static void
@@ -56,8 +64,8 @@ eth_set (void *vstate, unsigned long int s)
 
 static const gsl_rng_type eth_type =
 {"eth",			/* name */
- (P1-2),			 /* RAND_MAX */
- 2,				/* RAND_MIN */
+ (1L<<31)-1,
+ 0,
  sizeof (eth_state_t),
  &eth_set,
  &eth_get,
